@@ -5,22 +5,27 @@
 """
 """
 
-__author__ = "Guilherme Castelao <guilherme@castelao.net>"
+__author__ = ["Guilherme Castelao <guilherme@castelao.net>", "Roberto De Almeida <rob@pydap.org>"]
 
-#import numpy
-#import pycdf
-from numpy import ma
+import os
+import itertools
 from datetime import datetime, timedelta
+from UserDict import IterableUserDict
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
+
+from numpy import ma
+import dap.client
 
 def topex_time_table(dt_days,dt_seconds,dt_microseconds,base_date=None):
     """
     """
-    from datetime import datetime
-    from datetime import timedelta
     if base_date is None:
         base_date=datetime(year=1950,month=01,day=01,hour=0,minute=0,second=0)
     t=[]
-    for d, s, ms in zip(dt_days.compressed(),dt_seconds.compressed(),dt_microseconds.compressed()):
+    for d, s, ms in itertools.izip(dt_days.compressed(),dt_seconds.compressed(),dt_microseconds.compressed()):
 	    dt=timedelta(days=int(d),seconds=int(s),microseconds=int(ms))
             t.append(base_date+dt)
     t=ma.masked_equal(t,-1)
@@ -31,7 +36,7 @@ def topex_track_table(ndata,tracks,cycles):
     """
     track_list=[]
     cycle_list=[]
-    for track, n, cycle in zip(tracks.compressed(),ndata.compressed(),cycles.compressed()):
+    for track, n, cycle in itertools.izip(tracks.compressed(),ndata.compressed(),cycles.compressed()):
         for i in range(n):
             track_list.append(track)
             cycle_list.append(cycle)
@@ -43,8 +48,6 @@ def read_file(filename,vars=['CorSSH','MSS','Bathy']):
     """
     """
     import dap.client
-    import string
-    from numpy import ma
     try:
         dataset = dap.client.open(filename)
     except:
@@ -89,28 +92,26 @@ def filter(data,var,limits):
 
       In work
     """
-    from numpy import ma
     index=(data[var].data>limits[0])&(data[var].data<limits[1])
     data_out={}
-    for key in data.keys():
+    for key in data:
         data_out[key]=data[key][index]
     return data_out
 
 def load_TP_dataset(files,filtercond=None):
     """
     """
-    from numpy import ma
     data_out={}
     for file in files:
         try:
 	    data = read_file(file)
 	    if filtercond is not None:
-	        for var in filtercond.keys():
+	        for var in filtercond:
 		  data=filter(data,var,filtercond[var])
             #
             for c in set(data['Cycles']):
 	        print "Doing cycle: %s" % c
-                if c not in data_out.keys():
+                if c not in data_out:
 	            data_out[c]={}
                 index_c = (data['Cycles'].data==c)
                 for tck in set(data['Tracks'][index_c]):
@@ -132,7 +133,6 @@ def load_from_path(path,filtercond=None):
     Maybe a regex too to restrict to nc files? Maybe to pattern of names.
     """
     import os
-    from numpy import ma
     filenames=os.listdir(path)
     filenames.sort()
     files=[os.path.join(path,filename) for filename in filenames]
@@ -161,33 +161,31 @@ def join_cycles(data):
     """Join all cycles, so that from data[c][t][vars] return data[t][vars] with all cycles
     """
     import numpy
-    from numpy import ma
     vars=data[data.keys()[0]][data[data.keys()[0]].keys()[0]].keys()
 
     data_out={}
     mask_out={}
-    for t in data[data.keys()[0]].keys():
+    for t in data[data.keys()[0]]:
         data_out[t]={}
         mask_out[t]={}
         for var in vars:
             data_out[t][var]=numpy.array([])
             mask_out[t][var]=numpy.array([],dtype=bool)
 
-    for c in data.keys():
-        for t in data[c].keys():
-            for var in data[c][t].keys():
+    for c in data:
+        for t in data[c]:
+            for var in data[c][t]:
 	        data_out[t][var]=numpy.concatenate((data_out[t][var],data[c][t][var].data))
                 mask_out[t][var]=numpy.concatenate((mask_out[t][var],data[c][t][var].mask))
 
     data_masked={}
-    for t in data_out.keys():
+    for t in data_out
         data_masked[t]={}
         for var in vars:
             data_masked[t][var]=ma.masked_array(data_out[t][var],mask_out[t][var])
 
     return data_masked
 
-from UserDict import IterableUserDict
 
 class TOPEX(IterableUserDict):
     """
@@ -199,20 +197,20 @@ class TOPEX(IterableUserDict):
 
     def __getitem__(self, key):
         print "Chave tipo %s" % type(key).__name__
-	if type(key).__name__=='str':
+    if isinstance(key, basestring):
 	    if key=='join':
 	        print "key is join"
 		data_out={}
-		for k in self.data.keys():
+		for k in self.data:
 		    if k not in data_out:
 		        pass
-	if type(key).__name__=='slice':
+    if isinstance(key, slice):
 	    print "It's a slice"
 	    if (key.start==0) & (key.stop>max(self.data.keys())+1) & (key.step==None):
 	      return self.data
 	    print "I'm not ready for that. Only full return, like x[:]"
 	    return
-	if key not in self.data.keys():
+    if key not in self.data:
 	    print "%s is not a valid key" % key
 	    return
         print "key: %s" % key
