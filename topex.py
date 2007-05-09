@@ -187,6 +187,22 @@ def join_cycles(data):
     return data_masked
 
 
+def invert_keys(data):
+    """ Invert the hirerachy of the first 2 level keys in the dictionary.
+
+        This is usable to group the data in tracks instead of cycles, like
+	  data[tracks][cycles] = invert_keys(data[cycles][tracks])
+    """
+    data_out={}
+    for c in data:
+        for t in data[c]:
+	    if t not in data_out:
+	        data_out[t]={}
+            if c not in data_out[t]:
+	        data_out[t][c]={}
+            data_out[t][c] = data[c][t]
+    return data_out
+
 class TOPEX(IterableUserDict):
     """
     """
