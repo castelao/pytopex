@@ -203,6 +203,14 @@ def invert_keys(data):
             data_out[t][c] = data[c][t]
     return data_out
 
+def make_SSA(data):
+    """
+    """
+    for c in data:
+        for t in data[c]:
+	    data[c][t]['SSA'] = data[c][t]['CorSSH']-data[c][t]['MSS']
+    return
+
 class TOPEX(IterableUserDict):
     """
     """
