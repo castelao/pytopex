@@ -179,7 +179,7 @@ def join_cycles(data):
                 mask_out[t][var]=numpy.concatenate((mask_out[t][var],data[c][t][var].mask))
 
     data_masked={}
-    for t in data_out
+    for t in data_out:
         data_masked[t]={}
         for var in vars:
             data_masked[t][var]=ma.masked_array(data_out[t][var],mask_out[t][var])
@@ -194,24 +194,24 @@ class TOPEX(IterableUserDict):
         """
         """
         self.data={1:{11:[1,2,3],12:[1.1,1.2,1.3],'teste':['orange','apple','pear']},2:[10,20,30],3:[100,200,300]}
-
+        return
     def __getitem__(self, key):
         print "Chave tipo %s" % type(key).__name__
-    if isinstance(key, basestring):
-	    if key=='join':
+        if isinstance(key, basestring):
+            if key=='join':
 	        print "key is join"
-		data_out={}
-		for k in self.data:
-		    if k not in data_out:
-		        pass
-    if isinstance(key, slice):
+	    data_out={}
+	    for k in self.data:
+                if k not in data_out:
+                    pass
+        if isinstance(key, slice):
 	    print "It's a slice"
 	    if (key.start==0) & (key.stop>max(self.data.keys())+1) & (key.step==None):
 	      return self.data
 	    print "I'm not ready for that. Only full return, like x[:]"
 	    return
-    if key not in self.data:
+        if key not in self.data:
 	    print "%s is not a valid key" % key
 	    return
-        print "key: %s" % key
-        return self.data[key]
+            print "key: %s" % key
+            return self.data[key]
