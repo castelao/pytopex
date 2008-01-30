@@ -84,6 +84,14 @@ def read_file(filename,vars=['CorSSH','MSS','Bathy']):
 	data[var]=tmp
     return data
 
+def make_SSHA(data):
+    """
+    """
+    for c in data:
+        for t in data[c]:
+	    data[c][t]['SSHA'] = data[c][t]['CorSSH']-data[c][t]['MSS']
+    return
+
 def filter(data,var,limits):
     """
 
@@ -92,39 +100,53 @@ def filter(data,var,limits):
 
       In work
     """
-    index=(data[var].data>limits[0])&(data[var].data<limits[1])
+    index=(data[var].data>=limits[0])&(data[var].data<=limits[1])
     data_out={}
     for key in data:
         data_out[key]=data[key][index]
     return data_out
 
-def load_TP_dataset(files,filtercond=None):
+def load_TP_dataset(files,filtercond=None,data=None):
     """
     """
-    data_out={}
-    for file in files:
+    if data is None:
+        data={}
+    elif type(data)!=dict:
+        print "data should be a dictionary, and it's %s" % type(data)
+        return
+    if type(files)==str:
+        fileslist = [files]
+    else:
+        fileslist = files
+    i=0
+    for file in fileslist:
         try:
-	    data = read_file(file)
+	    if i<=25:
+	        i+=1
+            else:
+	        i=0
+	        save_dataset(data_out,'load_TP_dataset.tmp')
+	    data_in = read_file(file)
 	    if filtercond is not None:
 	        for var in filtercond:
-		  data=filter(data,var,filtercond[var])
+		  data_in=filter(data_in,var,filtercond[var])
             #
-            for c in set(data['Cycles']):
+            for c in set(data_in['Cycles']):
 	        print "Doing cycle: %s" % c
-                if c not in data_out:
-	            data_out[c]={}
-                index_c = (data['Cycles'].data==c)
-                for tck in set(data['Tracks'][index_c]):
+                if c not in data:
+	            data[c]={}
+                index_c = (data_in['Cycles'].data_in==c)
+                for tck in set(data_in['Tracks'][index_c]):
 		    #print "Doing track: %s" % tck
 	            #if tck not in data_out[c].keys():
 	            #    data_out[c][tck]={}
-                    index_tck = index_c & (data['Tracks'].data==tck)
+                    index_tck = index_c & (data_in['Tracks'].data_in==tck)
 		    # Change it for a generic all keys
-                    data_out[c][tck]={'Datetime':data['Datetime'][index_tck],'Latitude':data['Latitude'][index_tck],'Longitude':data['Longitude'][index_tck],'CorSSH':data['CorSSH'][index_tck],'MSS':data['MSS'][index_tck],'Bathy':data['Bathy'][index_tck]}
+                    data[c][tck]={'Datetime':data_in['Datetime'][index_tck],'Latitude':data_in['Latitude'][index_tck],'Longitude':data_in['Longitude'][index_tck],'CorSSH':data_in['CorSSH'][index_tck],'MSS':data_in['MSS'][index_tck],'Bathy':data_in['Bathy'][index_tck]}
         except:
             pass
     #
-    return data_out
+    return data
 
 def load_from_path(path,filtercond=None):
     """
@@ -138,6 +160,41 @@ def load_from_path(path,filtercond=None):
     files=[os.path.join(path,filename) for filename in filenames]
     data=load_TP_dataset(files,filtercond)
     return data
+
+def load_from_aviso(urlbase='ftp://ftp.cls.fr/pub/oceano/AVISO/SSH/monomission/dt/corssh/ref/j1/',filtercond=None):
+    """ Load the data from aviso
+    """
+    import urllib
+    import re
+    import urlparse
+    import StringIO
+    import gzip
+    import pupy
+    import tempfile
+
+    f = urllib.urlopen(urlbase)
+    content = f.read()
+    filesnames = re.findall('CorSSH_Ref_\w{2}_Cycle\d{1,3}\.nc\.gz',content)
+    for filename in filesnames:
+        f = urllib.urlopen(urlparse.urljoin(urlbase,filename))
+        #content = f.read()
+        #f=StringIO.StringIO(content)
+        f=StringIO.StringIO(f.read())
+        zf = gzip.GzipFile(fileobj=f)
+        #f=open('tmp','w')
+        #f.write(zf.read())
+        #f.close()
+        #x=NetCDFFile(tmp)
+        #ncf=tempfile.mkstemp(text=zf.read())
+        unzf=tempfile.TemporaryFile()
+        unzf.write(zf.read())
+        unzf.seek(0)
+        ncf=pupy.NetCDFFile(fileobj=unzf)
+        print ncf.attributes
+        print ncf.variables.keys()
+
+    return
+    
 
 def save_dataset(data,filename):
     """
@@ -162,29 +219,18 @@ def join_cycles(data):
     """
     import numpy
     vars=data[data.keys()[0]][data[data.keys()[0]].keys()[0]].keys()
-
     data_out={}
-    mask_out={}
-    for t in data[data.keys()[0]]:
+    for t in invert_keys(data):
         data_out[t]={}
-        mask_out[t]={}
         for var in vars:
-            data_out[t][var]=numpy.array([])
-            mask_out[t][var]=numpy.array([],dtype=bool)
+            data_out[t][var] = ma.masked_array([])
 
     for c in data:
         for t in data[c]:
             for var in data[c][t]:
-	        data_out[t][var]=numpy.concatenate((data_out[t][var],data[c][t][var].data))
-                mask_out[t][var]=numpy.concatenate((mask_out[t][var],data[c][t][var].mask))
+	        data_out[t][var]=numpy.ma.concatenate((data_out[t][var],data[c][t][var]))
 
-    data_masked={}
-    for t in data_out:
-        data_masked[t]={}
-        for var in vars:
-            data_masked[t][var]=ma.masked_array(data_out[t][var],mask_out[t][var])
-
-    return data_masked
+    return data_out
 
 
 def invert_keys(data):
@@ -196,21 +242,80 @@ def invert_keys(data):
     data_out={}
     for c in data:
         for t in data[c]:
-	    if t not in data_out:
-	        data_out[t]={}
+            if t not in data_out:
+                data_out[t]={}
             if c not in data_out[t]:
-	        data_out[t][c]={}
+                data_out[t][c]={}
             data_out[t][c] = data[c][t]
     return data_out
 
-def make_SSA(data):
+##############################################################################
+#### Extras
+##############################################################################
+
+def make_L(data,direction='S',z=None,):
+    """ Define the along track distance from one reference
+
+        direction define the cardinal direction priority (N,S,W or E).
+         S means that the reference will be the southern most point
+
+        z define the bathymetry, if defined, the closest point to that
+         bathymetry will be the reference. In case of cross this bathymetry
+         more than once, the direction criteria is used to distinguish.
     """
-    """
-    for c in data:
-        for t in data[c]:
-	    data[c][t]['SSA'] = data[c][t]['CorSSH']-data[c][t]['MSS']
+    from fluid.common.distance import distance
+    all_cycles_data = join_cycles(data)
+
+    if z==None:
+        import rpy
+        #for t in topex.invert_keys(data):
+        for t in all_cycles_data:
+            rpy.set_default_mode(rpy.NO_CONVERSION)
+            linear_model = rpy.r.lm(rpy.r("y ~ x"), data = rpy.r.data_frame(x=all_cycles_data[t]['Longitude'], y=all_cycles_data[t]['Latitude']))
+            rpy.set_default_mode(rpy.BASIC_CONVERSION)
+            coef=rpy.r.coef(linear_model)
+            if direction=='S':
+                lat0=all_cycles_data[t]['Latitude'].min()-1
+                lon0 = (lat0-coef['(Intercept)'])/coef['x']
+                L_correction = distance(all_cycles_data[t]['Latitude'],all_cycles_data[t]['Longitude'],lat0,lon0).min()
+            for c in invert_keys(data)[t]:
+                data[c][t]['L'] = distance(data[c][t]['Latitude'],data[c][t]['Longitude'],lat0,lon0)- L_correction
+    # This bathymetric method was only copied from an old code. This should be atleast
+    #  changed, if not removed.
+    elif method=='bathymetric':
+        import rpy
+        for t in all_cycles_data:
+            # First define the near coast values.
+            idSouth=numpy.argmin(all_cycles_data[t]['Latitude'])
+            L_tmp = distance(all_cycles_data[t]['Latitude'],all_cycles_data[t]['Longitude'],all_cycles_data[t]['Latitude'][idSouth],all_cycles_data[t]['Longitude'][idSouth])
+            idNearCoast = L_tmp.data<400e3
+            if min(all_cycles_data[t]['Bathy'][idNearCoast]) > -z:
+                idNearCoast = L_tmp.data<600e3
+            # Then calculate the distance to a reference
+            rpy.set_default_mode(rpy.NO_CONVERSION)
+            linear_model = rpy.r.lm(rpy.r("y ~ x"), data = rpy.r.data_frame(x=all_cycles_data[t]['Longitude'], y=all_cycles_data[t]['Latitude']))
+            rpy.set_default_mode(rpy.BASIC_CONVERSION)
+            coef=rpy.r.coef(linear_model)
+            lat0 = all_cycles_data[t]['Latitude'].min()-1
+            lon0 = (lat0-coef['(Intercept)'])/coef['x']
+            #L = distance(,lon,lat0,lon0)
+            #
+            #id0 = numpy.argmin(numpy.absolute(all_cycles_data[t]['Bathy'][idNearCoast]))
+            idref=numpy.argmin(numpy.absolute(all_cycles_data[t]['Bathy'][idNearCoast]+z))
+            #L_correction = distance(all_cycles_data[t]['Latitude'][idNearCoast][idref],all_cycles_data[t]['Longitude'][idNearCoast][idref],all_cycles_data[t]['Latitude'][idNearCoast][idref],all_cycles_data[t]['Longitude'][idNearCoast][idref])
+            L_correction = distance(all_cycles_data[t]['Latitude'][idNearCoast][idref],all_cycles_data[t]['Longitude'][idNearCoast][idref],lat0,lon0)
+            for c in topex.invert_keys(data)[t]:
+                #data[c][t]['L'] = distance(data[c][t]['Latitude'],data[c][t]['Longitude'],all_cycles_data[t]['Latitude'][idNearCoast][id0],all_cycles_data[t]['Longitude'][idNearCoast][id0]) - L_correction
+                data[c][t]['L'] = distance(data[c][t]['Latitude'],data[c][t]['Longitude'],lat0,lon0) - L_correction
+    #
     return
 
+
+##############################################################################
+#### 
+##############################################################################
+
+##############################################################################
 class TOPEX(IterableUserDict):
     """
     """
