@@ -120,12 +120,8 @@ def load_TP_dataset(files,filtercond=None,data=None):
         fileslist = files
     i=0
     for file in fileslist:
+        print "File: %s", file
         try:
-	    if i<=25:
-	        i+=1
-            else:
-	        i=0
-	        save_dataset(data_out,'load_TP_dataset.tmp')
 	    data_in = read_file(file)
 	    if filtercond is not None:
 	        for var in filtercond:
@@ -135,14 +131,19 @@ def load_TP_dataset(files,filtercond=None,data=None):
 	        print "Doing cycle: %s" % c
                 if c not in data:
 	            data[c]={}
-                index_c = (data_in['Cycles'].data_in==c)
+                index_c = (data_in['Cycles'].data==c)
                 for tck in set(data_in['Tracks'][index_c]):
 		    #print "Doing track: %s" % tck
 	            #if tck not in data_out[c].keys():
 	            #    data_out[c][tck]={}
-                    index_tck = index_c & (data_in['Tracks'].data_in==tck)
+                    index_tck = index_c & (data_in['Tracks'].data==tck)
 		    # Change it for a generic all keys
                     data[c][tck]={'Datetime':data_in['Datetime'][index_tck],'Latitude':data_in['Latitude'][index_tck],'Longitude':data_in['Longitude'][index_tck],'CorSSH':data_in['CorSSH'][index_tck],'MSS':data_in['MSS'][index_tck],'Bathy':data_in['Bathy'][index_tck]}
+	    if i<=25:
+	        i+=1
+            else:
+	        i=0
+	        save_dataset(data,'load_TP_dataset.tmp')
         except:
             pass
     #
