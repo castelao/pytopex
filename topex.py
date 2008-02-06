@@ -120,7 +120,7 @@ def load_TP_dataset(files,filtercond=None,data=None):
         fileslist = files
     i=0
     for file in fileslist:
-        print "File: %s", file
+        print "File: %s" % file
         try:
 	    data_in = read_file(file)
 	    if filtercond is not None:
@@ -170,31 +170,33 @@ def load_from_aviso(urlbase='ftp://ftp.cls.fr/pub/oceano/AVISO/SSH/monomission/d
     import urlparse
     import StringIO
     import gzip
-    import pupy
+    import pupynere
     import tempfile
 
     f = urllib.urlopen(urlbase)
     content = f.read()
     filesnames = re.findall('CorSSH_Ref_\w{2}_Cycle\d{1,3}\.nc\.gz',content)
-    for filename in filesnames:
+    data = {}
+    for filename in filesnames[:3]:
         f = urllib.urlopen(urlparse.urljoin(urlbase,filename))
         #content = f.read()
         #f=StringIO.StringIO(content)
         f=StringIO.StringIO(f.read())
         zf = gzip.GzipFile(fileobj=f)
-        #f=open('tmp','w')
-        #f.write(zf.read())
-        #f.close()
+        f=open('tmp.nc','w')
+        f.write(zf.read())
+        f.close()
+        data=topex.load_TP_dataset(['tmp.nc'],filtercond=filtercond,data=data)
         #x=NetCDFFile(tmp)
         #ncf=tempfile.mkstemp(text=zf.read())
-        unzf=tempfile.TemporaryFile()
-        unzf.write(zf.read())
-        unzf.seek(0)
-        ncf=pupy.NetCDFFile(fileobj=unzf)
-        print ncf.attributes
-        print ncf.variables.keys()
+        #unzf=tempfile.TemporaryFile()
+        #unzf.write(zf.read())
+        #unzf.seek(0)
+        #ncf=pupy.NetCDFFile(fileobj=unzf)
+        #print ncf.attributes
+        #print ncf.variables.keys()
 
-    return
+    return data
     
 
 def save_dataset(data,filename):
